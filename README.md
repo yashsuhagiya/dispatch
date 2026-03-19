@@ -49,7 +49,14 @@ PORT=3000
 | `ATTACHMENTS` | No | Comma-separated absolute paths to extra attachments |
 | `PORT` | No | Server port (default: 3000) |
 
-Create your email body file (supports multiple lines):
+Create your email body file. Replace the included `email-body.txt` with your own content (supports multiple lines):
+
+```bash
+# Edit the included template, or create your own and update EMAIL_BODY_PATH in .env
+nano email-body.txt
+```
+
+Example:
 
 ```
 Hi,
