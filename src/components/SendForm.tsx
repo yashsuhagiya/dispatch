@@ -78,7 +78,7 @@ export default function SendForm({ onSent, history }: SendFormProps) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label htmlFor="recipients" className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor="recipients" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
           Recipient Emails
         </label>
         <textarea
@@ -91,15 +91,15 @@ export default function SendForm({ onSent, history }: SendFormProps) {
           }}
           placeholder={"recruiter@company.com\nhr@another.com, hiring@startup.io"}
           rows={3}
-          className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition resize-y"
+          className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 outline-none transition resize-y"
           disabled={loading}
         />
         <div className="flex items-center justify-between mt-1.5">
-          <p className="text-xs text-gray-400">
+          <p className="text-xs text-gray-400 dark:text-gray-500">
             One per line, or comma/semicolon separated
           </p>
           {emails.length > 0 && (
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               {validEmails.length} valid{invalidEmails.length > 0 && `, ${invalidEmails.length} invalid`}
             </p>
           )}
@@ -115,20 +115,20 @@ export default function SendForm({ onSent, history }: SendFormProps) {
       </button>
 
       {invalidEmails.length > 0 && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-400">
           Invalid: {invalidEmails.join(', ')}
         </div>
       )}
 
       {duplicates.length > 0 && !showConfirm && (
-        <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-4 py-3 text-sm text-amber-800 dark:text-amber-400">
           Already sent to: {duplicates.join(', ')}
         </div>
       )}
 
       {showConfirm && (
-        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3">
-          <p className="text-sm text-blue-800 mb-3">
+        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 px-4 py-3">
+          <p className="text-sm text-blue-800 dark:text-blue-300 mb-3">
             Send application email to{' '}
             <span className="font-medium">
               {validEmails.length === 1 ? validEmails[0] : `${validEmails.length} recipients`}
@@ -148,7 +148,7 @@ export default function SendForm({ onSent, history }: SendFormProps) {
               type="button"
               onClick={() => setShowConfirm(false)}
               disabled={loading}
-              className="rounded-md bg-gray-200 px-4 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-300 transition"
+              className="rounded-md bg-gray-200 dark:bg-gray-700 px-4 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
             >
               Cancel
             </button>
@@ -160,10 +160,10 @@ export default function SendForm({ onSent, history }: SendFormProps) {
         <div className="space-y-2">
           <div className={`rounded-lg px-4 py-3 text-sm ${
             progress.failed === 0
-              ? 'border border-green-300 bg-green-50 text-green-800'
+              ? 'border border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-400'
               : progress.sent === 0
-                ? 'border border-red-300 bg-red-50 text-red-800'
-                : 'border border-amber-300 bg-amber-50 text-amber-800'
+                ? 'border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-400'
+                : 'border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-400'
           }`}>
             {progress.total === 1
               ? (progress.sent === 1 ? `Sent to ${results[0].to}` : results[0].error || 'Failed to send')
@@ -171,7 +171,7 @@ export default function SendForm({ onSent, history }: SendFormProps) {
             }
           </div>
           {progress.total > 1 && progress.failed > 0 && (
-            <div className="text-xs text-red-600 space-y-0.5">
+            <div className="text-xs text-red-600 dark:text-red-400 space-y-0.5">
               {results.filter((r) => !r.success).map((r) => (
                 <p key={r.to}>{r.to}: {r.error}</p>
               ))}
