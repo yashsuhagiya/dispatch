@@ -52,7 +52,7 @@ export default function App() {
       <div className="mx-auto max-w-3xl px-4 py-10">
         <header className="mb-8 flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Email Application Sender</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100"><span className="mr-2">🚀</span>Email Application Sender</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
               Send your job application with one click.
             </p>
