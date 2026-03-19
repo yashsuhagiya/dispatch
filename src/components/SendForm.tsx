@@ -167,7 +167,7 @@ export default function SendForm({ onSent, history }: SendFormProps) {
           }`}>
             {progress.total === 1
               ? (progress.sent === 1 ? `Sent to ${results[0].to}` : results[0].error || 'Failed to send')
-              : `${progress.sent} sent, ${progress.failed} failed out of ${progress.total}`
+              : <><span className="text-green-600 dark:text-green-400">{progress.sent} passed</span>{' · '}<span className="text-red-600 dark:text-red-400">{progress.failed} failed</span>{` out of ${progress.total}`}</>
             }
           </div>
           {progress.total > 1 && progress.failed > 0 && (
