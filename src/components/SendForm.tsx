@@ -9,7 +9,10 @@ interface SendFormProps {
   templates: Template[]
   prefill: ComposePrefill | null
   onPrefillConsumed: () => void
+  onTemplatesChange: () => void
 }
+
+const TEMPLATE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,49}$/
 
 function parseEmails(input: string): string[] {
   return input.split(/[\n,;]+/).map((e) => e.trim()).filter((e) => e.length > 0)
@@ -19,13 +22,21 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-export default function SendForm({ onSent, history, templates, prefill, onPrefillConsumed }: SendFormProps) {
+export default function SendForm({ onSent, history, templates, prefill, onPrefillConsumed, onTemplatesChange }: SendFormProps) {
   const [input, setInput] = useState('')
   const [templateId, setTemplateId] = useState<string>(templates[0]?.id ?? '')
   const [tokens, setTokens] = useState<Record<string, string>>({})
   const [autoFilled, setAutoFilled] = useState<Record<string, boolean>>({})
   const [showPreview, setShowPreview] = useState(false)
   const [parentContext, setParentContext] = useState<{ parentId: string; threadIndex: number } | null>(null)
+
+  // Editable draft content (raw, with {{tokens}}). Synced from active template
+  // unless the user has diverged from it. Always used as the source of truth
+  // for the preview and the send.
+  const [draftSubject, setDraftSubject] = useState('')
+  const [draftBody, setDraftBody] = useState('')
+  const [editing, setEditing] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null)
 
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState<{ sent: number; failed: number; total: number } | null>(null)
@@ -75,6 +86,25 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
     [templates, templateId],
   )
 
+  // Sync the draft from the active template when it changes — but NOT while
+  // the user is actively editing (their in-progress draft would vanish).
+  useEffect(() => {
+    if (editing) return
+    if (!activeTemplate) {
+      setDraftSubject('')
+      setDraftBody('')
+      return
+    }
+    setDraftSubject(activeTemplate.subject)
+    setDraftBody(activeTemplate.body)
+    setSaveStatus(null)
+  }, [activeTemplate, editing])
+
+  const isDirty = !!activeTemplate && (
+    draftSubject !== activeTemplate.subject || draftBody !== activeTemplate.body
+  )
+  const isDefaultTemplate = activeTemplate?.id === 'default'
+
   // Auto-fill company/first_name from the first valid email when the user
   // hasn't explicitly typed a value yet.
   useEffect(() => {
@@ -117,11 +147,73 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
     setAutoFilled((prev) => ({ ...prev, [key]: false }))
   }
 
-  const previewSubject = activeTemplate ? substitute(activeTemplate.subject, tokens) : ''
-  const previewBody = activeTemplate ? substitute(activeTemplate.body, tokens) : ''
-  const missingTokens = activeTemplate
-    ? unfilledTokens(activeTemplate.subject + '\n' + activeTemplate.body, tokens)
-    : []
+  const previewSubject = substitute(draftSubject, tokens)
+  const previewBody = substitute(draftBody, tokens)
+  const missingTokens = unfilledTokens(draftSubject + '\n' + draftBody, tokens)
+
+  async function handleSaveChanges(): Promise<void> {
+    if (!activeTemplate || isDefaultTemplate) return
+    setSaveStatus(null)
+    try {
+      const res = await fetch(`/api/templates/${encodeURIComponent(activeTemplate.id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subject: draftSubject, body: draftBody }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        setSaveStatus({ kind: 'err', text: err.error ?? 'Failed to save.' })
+        return
+      }
+      setSaveStatus({ kind: 'ok', text: `Saved to ${activeTemplate.id}.txt` })
+      onTemplatesChange()
+    } catch {
+      setSaveStatus({ kind: 'err', text: 'Network error while saving.' })
+    }
+  }
+
+  async function handleSaveAsNew(): Promise<void> {
+    const suggested = activeTemplate?.id
+      ? `${activeTemplate.id}-v2`
+      : 'my-template'
+    const raw = window.prompt(
+      'New template id (lowercase, digits, hyphens; 1–50 chars):',
+      suggested,
+    )
+    if (!raw) return
+    const id = raw.trim().toLowerCase()
+    if (!TEMPLATE_ID_PATTERN.test(id)) {
+      setSaveStatus({ kind: 'err', text: `Invalid id "${id}". Use a–z, 0–9, hyphens; start with a letter or digit.` })
+      return
+    }
+    setSaveStatus(null)
+    try {
+      const res = await fetch('/api/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, subject: draftSubject, body: draftBody }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        setSaveStatus({ kind: 'err', text: err.error ?? 'Failed to create.' })
+        return
+      }
+      setSaveStatus({ kind: 'ok', text: `Filed as ${id}.txt` })
+      onTemplatesChange()
+      // Switch the picker to the new template once the list refreshes.
+      setTemplateId(id)
+      setEditing(false)
+    } catch {
+      setSaveStatus({ kind: 'err', text: 'Network error while creating.' })
+    }
+  }
+
+  function handleDiscardEdits(): void {
+    if (!activeTemplate) return
+    setDraftSubject(activeTemplate.subject)
+    setDraftBody(activeTemplate.body)
+    setSaveStatus(null)
+  }
 
   async function handleSend() {
     if (sendingRef.current || validEmails.length === 0) return
@@ -135,6 +227,15 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
       Object.entries(tokens).filter(([, v]) => v.trim().length > 0),
     )
 
+    // Always ship the raw draft subject/body; server substitutes tokens.
+    // This unifies "plain template" and "edited-inline" paths.
+    const sendPayload = {
+      templateId: activeTemplate?.id,
+      tokens: cleanedTokens,
+      subject: draftSubject,
+      body: draftBody,
+    }
+
     try {
       if (validEmails.length === 1) {
         const res = await fetch('/api/send', {
@@ -142,8 +243,7 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             to: validEmails[0],
-            templateId: activeTemplate?.id,
-            tokens: cleanedTokens,
+            ...sendPayload,
             parentId: parentContext?.parentId,
             threadIndex: parentContext?.threadIndex,
           }),
@@ -157,8 +257,7 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             recipients: validEmails,
-            templateId: activeTemplate?.id,
-            tokens: cleanedTokens,
+            ...sendPayload,
           }),
         })
         const data = await res.json()
@@ -169,6 +268,12 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
       setTokens({})
       setAutoFilled({})
       setParentContext(null)
+      setEditing(false)
+      // Reset draft to the (possibly-refetched) template on the next effect tick.
+      if (activeTemplate) {
+        setDraftSubject(activeTemplate.subject)
+        setDraftBody(activeTemplate.body)
+      }
       onSent()
     } catch {
       setResults([{ to: '', success: false, error: 'Network error — is the server running?' }])
@@ -308,30 +413,129 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
         </div>
       )}
 
-      {/* Preview toggle */}
+      {/* Preview / edit */}
       {activeTemplate && (
         <div>
-          <button
-            type="button"
-            onClick={() => setShowPreview((v) => !v)}
-            className="label text-left inline-flex items-center gap-2 hover:text-[var(--color-dispatch)] dark:hover:text-[var(--color-dispatch-n)] transition"
-          >
-            {showPreview ? '▾' : '▸'} Preview the dispatch
-            {missingTokens.length > 0 && (
-              <span className="text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)] not-italic text-[0.72rem] font-medium">
-                · {missingTokens.length} blank{missingTokens.length !== 1 ? 's' : ''} unfilled
-              </span>
-            )}
-          </button>
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setShowPreview((v) => !v)}
+              className="label text-left inline-flex items-center gap-2 hover:text-[var(--color-dispatch)] dark:hover:text-[var(--color-dispatch-n)] transition"
+            >
+              {showPreview ? '▾' : '▸'} Preview the dispatch
+              {missingTokens.length > 0 && (
+                <span className="text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)] not-italic text-[0.72rem] font-medium">
+                  · {missingTokens.length} blank{missingTokens.length !== 1 ? 's' : ''} unfilled
+                </span>
+              )}
+              {isDirty && !editing && (
+                <span className="not-italic text-[0.72rem] font-medium text-[var(--color-stamp)]">· edited</span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing((v) => !v)
+                setShowPreview(true)
+                setSaveStatus(null)
+              }}
+              className="btn-ghost !py-1 !px-2.5 !text-[0.7rem] !tracking-normal !normal-case !font-medium"
+            >
+              {editing ? '✕ Done editing' : '✎ Edit this dispatch'}
+            </button>
+          </div>
+
           {showPreview && (
-            <div className="mt-2 border-l-2 border-current pl-4 py-1 space-y-2">
-              <p className="font-mono text-sm">
-                <span className="muted mr-2">Subject:</span>
-                {previewSubject}
-              </p>
-              <pre className="font-mono text-sm whitespace-pre-wrap leading-relaxed">
-                {previewBody}
-              </pre>
+            <div className="mt-3 border-l-2 border-current pl-4 py-1 space-y-3">
+              {/* Editable source */}
+              {editing ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[0.7rem] muted block mb-1 font-medium">Subject (source)</label>
+                    <input
+                      type="text"
+                      value={draftSubject}
+                      onChange={(e) => setDraftSubject(e.target.value)}
+                      className="field !py-2 !text-sm font-mono"
+                      spellCheck={false}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[0.7rem] muted block mb-1 font-medium">Body (source)</label>
+                    <textarea
+                      value={draftBody}
+                      onChange={(e) => setDraftBody(e.target.value)}
+                      className="field !py-2 !text-sm font-mono"
+                      rows={12}
+                      spellCheck={false}
+                    />
+                    <p className="muted text-[0.7rem] italic font-display mt-1">
+                      Any <span className="font-mono not-italic">{'{{token}}'}</span> is filled from the inputs above.
+                    </p>
+                  </div>
+
+                  {/* Save controls */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleSaveChanges}
+                      disabled={!isDirty || isDefaultTemplate}
+                      title={
+                        isDefaultTemplate
+                          ? 'The default template is synthesized from .env — save as a new template instead.'
+                          : isDirty
+                            ? `Overwrite ${activeTemplate.id}.txt on disk`
+                            : 'No unsaved changes'
+                      }
+                      className="btn-ghost !py-1.5 !px-3 !text-[0.7rem] !tracking-normal !normal-case !font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Save to {activeTemplate.id}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveAsNew}
+                      className="btn-ghost !py-1.5 !px-3 !text-[0.7rem] !tracking-normal !normal-case !font-medium"
+                      title="Write a new file under data/templates/"
+                    >
+                      Save as new…
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDiscardEdits}
+                      disabled={!isDirty}
+                      className="btn-ghost !py-1.5 !px-3 !text-[0.7rem] !tracking-normal !normal-case !font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Revert subject and body to the saved template"
+                    >
+                      Discard edits
+                    </button>
+                    {saveStatus && (
+                      <span
+                        className={`text-[0.72rem] italic font-display ${
+                          saveStatus.kind === 'ok'
+                            ? 'text-[var(--color-stamp)]'
+                            : 'text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]'
+                        }`}
+                      >
+                        {saveStatus.kind === 'ok' ? '✓ ' : '✕ '}{saveStatus.text}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Rendered preview — always shown when preview is open */}
+              <div className={editing ? 'border-t border-current/40 pt-3' : ''}>
+                <div className="label mb-1.5">
+                  {editing ? 'Rendered preview' : 'What will be sent'}
+                </div>
+                <p className="font-mono text-sm">
+                  <span className="muted mr-2">Subject:</span>
+                  {previewSubject}
+                </p>
+                <pre className="font-mono text-sm whitespace-pre-wrap leading-relaxed mt-1">
+                  {previewBody}
+                </pre>
+              </div>
             </div>
           )}
         </div>

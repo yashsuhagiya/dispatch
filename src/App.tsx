@@ -203,6 +203,7 @@ export default function App() {
               templates={templates}
               prefill={prefill}
               onPrefillConsumed={() => setPrefill(null)}
+              onTemplatesChange={fetchTemplates}
             />
           </section>
 
