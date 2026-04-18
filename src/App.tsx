@@ -160,39 +160,35 @@ export default function App() {
           <StatsStrip stats={stats} />
         </section>
 
-        {/* ══════════════ TWO-COLUMN BODY ══════════════ */}
-        <div className="mt-7 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-8 lg:gap-12">
+        {/* ══════════════ § I — COMPOSE (priority, full-width, 2-pane inside) ══════════════ */}
+        <section className="reveal mt-7" style={{ animationDelay: '160ms' }}>
+          <div className="flex items-baseline justify-between mb-2 gap-4">
+            <h2 className="font-display text-[1.4rem] leading-none tracking-tight">
+              <span className="muted mr-2">§ I</span>
+              Compose a dispatch
+            </h2>
+            <span className="muted text-[0.72rem] font-medium whitespace-nowrap">⌘K to focus</span>
+          </div>
+          <div className="rule-double mb-4" />
+          <SendForm
+            onSent={fetchHistory}
+            history={history}
+            templates={templates}
+            prefill={prefill}
+            onPrefillConsumed={() => setPrefill(null)}
+            onTemplatesChange={fetchTemplates}
+          />
+        </section>
 
-          {/* § I — Dispatch note */}
-          <section className="reveal" style={{ animationDelay: '240ms' }}>
-            <div className="flex items-baseline justify-between mb-2 gap-4">
-              <h2 className="font-display text-[1.4rem] leading-none tracking-tight">
-                <span className="muted mr-2">§ I</span>
-                Compose a dispatch
-              </h2>
-              <span className="muted text-[0.72rem] font-medium whitespace-nowrap">⌘K to focus</span>
-            </div>
-            <div className="rule-double mb-4" />
-            <SendForm
-              onSent={fetchHistory}
-              history={history}
-              templates={templates}
-              prefill={prefill}
-              onPrefillConsumed={() => setPrefill(null)}
-              onTemplatesChange={fetchTemplates}
-            />
-          </section>
-
-          {/* § II — Campaign ledger */}
-          <section className="reveal" style={{ animationDelay: '360ms' }}>
-            <Ledger
-              history={history}
-              loading={loading}
-              onMetaChange={() => setMetaVersion((v) => v + 1)}
-              onComposeFollowUp={handleComposeFollowUp}
-            />
-          </section>
-        </div>
+        {/* ══════════════ § II — LEDGER (reference, full width) ══════════════ */}
+        <section className="reveal mt-14" style={{ animationDelay: '280ms' }}>
+          <Ledger
+            history={history}
+            loading={loading}
+            onMetaChange={() => setMetaVersion((v) => v + 1)}
+            onComposeFollowUp={handleComposeFollowUp}
+          />
+        </section>
 
         {/* ══════════════ FOOTER ══════════════ */}
         <footer className="mt-20 reveal-fade" style={{ animationDelay: '720ms' }}>

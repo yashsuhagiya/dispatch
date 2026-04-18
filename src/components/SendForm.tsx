@@ -313,7 +313,7 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
 
-      {/* Follow-up banner if composing from a parent */}
+      {/* Follow-up banner if composing from a parent — spans both panes */}
       {parentContext && (
         <div className="border-l-4 border-[var(--color-dispatch)] dark:border-[var(--color-dispatch-n)] pl-4 py-1.5 flex items-baseline justify-between gap-4 flex-wrap">
           <div>
@@ -331,6 +331,12 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
           </button>
         </div>
       )}
+
+      {/* ═══════ 2-pane split: inputs (left) + preview/edit (right) ═══════ */}
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)] gap-6 lg:gap-10 lg:items-start">
+
+      {/* ═══════ LEFT PANE ═══════ */}
+      <div className="space-y-5 min-w-0">
 
       <div>
         <div className="flex items-baseline justify-between mb-2 gap-4">
@@ -410,134 +416,6 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
               </div>
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Preview / edit */}
-      {activeTemplate && (
-        <div>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setShowPreview((v) => !v)}
-              className="label text-left inline-flex items-center gap-2 hover:text-[var(--color-dispatch)] dark:hover:text-[var(--color-dispatch-n)] transition"
-            >
-              {showPreview ? '▾' : '▸'} Preview the dispatch
-              {missingTokens.length > 0 && (
-                <span className="text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)] not-italic text-[0.72rem] font-medium">
-                  · {missingTokens.length} blank{missingTokens.length !== 1 ? 's' : ''} unfilled
-                </span>
-              )}
-              {isDirty && !editing && (
-                <span className="not-italic text-[0.72rem] font-medium text-[var(--color-stamp)]">· edited</span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setEditing((v) => !v)
-                setShowPreview(true)
-                setSaveStatus(null)
-              }}
-              className="btn-ghost !py-1 !px-2.5 !text-[0.7rem] !tracking-normal !normal-case !font-medium"
-            >
-              {editing ? '✕ Done editing' : '✎ Edit this dispatch'}
-            </button>
-          </div>
-
-          {showPreview && (
-            <div className="mt-3 border-l-2 border-current pl-4 py-1 space-y-3">
-              {/* Editable source */}
-              {editing ? (
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-[0.7rem] muted block mb-1 font-medium">Subject (source)</label>
-                    <input
-                      type="text"
-                      value={draftSubject}
-                      onChange={(e) => setDraftSubject(e.target.value)}
-                      className="field !py-2 !text-sm font-mono"
-                      spellCheck={false}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-[0.7rem] muted block mb-1 font-medium">Body (source)</label>
-                    <textarea
-                      value={draftBody}
-                      onChange={(e) => setDraftBody(e.target.value)}
-                      className="field !py-2 !text-sm font-mono"
-                      rows={12}
-                      spellCheck={false}
-                    />
-                    <p className="muted text-[0.7rem] italic font-display mt-1">
-                      Any <span className="font-mono not-italic">{'{{token}}'}</span> is filled from the inputs above.
-                    </p>
-                  </div>
-
-                  {/* Save controls */}
-                  <div className="flex flex-wrap items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={handleSaveChanges}
-                      disabled={!isDirty || isDefaultTemplate}
-                      title={
-                        isDefaultTemplate
-                          ? 'The default template is synthesized from .env — save as a new template instead.'
-                          : isDirty
-                            ? `Overwrite ${activeTemplate.id}.txt on disk`
-                            : 'No unsaved changes'
-                      }
-                      className="btn-ghost !py-1.5 !px-3 !text-[0.7rem] !tracking-normal !normal-case !font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-                    >
-                      Save to {activeTemplate.id}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveAsNew}
-                      className="btn-ghost !py-1.5 !px-3 !text-[0.7rem] !tracking-normal !normal-case !font-medium"
-                      title="Write a new file under data/templates/"
-                    >
-                      Save as new…
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleDiscardEdits}
-                      disabled={!isDirty}
-                      className="btn-ghost !py-1.5 !px-3 !text-[0.7rem] !tracking-normal !normal-case !font-medium disabled:opacity-40 disabled:cursor-not-allowed"
-                      title="Revert subject and body to the saved template"
-                    >
-                      Discard edits
-                    </button>
-                    {saveStatus && (
-                      <span
-                        className={`text-[0.72rem] italic font-display ${
-                          saveStatus.kind === 'ok'
-                            ? 'text-[var(--color-stamp)]'
-                            : 'text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]'
-                        }`}
-                      >
-                        {saveStatus.kind === 'ok' ? '✓ ' : '✕ '}{saveStatus.text}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Rendered preview — always shown when preview is open */}
-              <div className={editing ? 'border-t border-current/40 pt-3' : ''}>
-                <div className="label mb-1.5">
-                  {editing ? 'Rendered preview' : 'What will be sent'}
-                </div>
-                <p className="font-mono text-sm">
-                  <span className="muted mr-2">Subject:</span>
-                  {previewSubject}
-                </p>
-                <pre className="font-mono text-sm whitespace-pre-wrap leading-relaxed mt-1">
-                  {previewBody}
-                </pre>
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -671,6 +549,140 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
           )}
         </div>
       )}
+
+      {/* ═══════ END LEFT PANE ═══════ */}
+      </div>
+
+      {/* ═══════ RIGHT PANE — preview / edit (sticky on lg+) ═══════ */}
+      {activeTemplate && (
+        <div className="min-w-0 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:overflow-y-auto">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setShowPreview((v) => !v)}
+              className="label text-left inline-flex items-center gap-2 hover:text-[var(--color-dispatch)] dark:hover:text-[var(--color-dispatch-n)] transition"
+            >
+              {showPreview ? '▾' : '▸'} Preview the dispatch
+              {missingTokens.length > 0 && (
+                <span className="text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)] not-italic text-[0.72rem] font-medium">
+                  · {missingTokens.length} blank{missingTokens.length !== 1 ? 's' : ''} unfilled
+                </span>
+              )}
+              {isDirty && !editing && (
+                <span className="not-italic text-[0.72rem] font-medium text-[var(--color-stamp)]">· edited</span>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditing((v) => !v)
+                setShowPreview(true)
+                setSaveStatus(null)
+              }}
+              className="btn-ghost !py-1 !px-2.5 !text-[0.7rem] !tracking-normal !normal-case !font-medium"
+            >
+              {editing ? '✕ Done editing' : '✎ Edit this dispatch'}
+            </button>
+          </div>
+
+          {showPreview && (
+            <div className="mt-3 border-l-2 border-current pl-4 py-1 space-y-3">
+              {/* Editable source */}
+              {editing ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-[0.7rem] muted block mb-1 font-medium">Subject (source)</label>
+                    <input
+                      type="text"
+                      value={draftSubject}
+                      onChange={(e) => setDraftSubject(e.target.value)}
+                      className="field !py-2 !text-sm font-mono"
+                      spellCheck={false}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[0.7rem] muted block mb-1 font-medium">Body (source)</label>
+                    <textarea
+                      value={draftBody}
+                      onChange={(e) => setDraftBody(e.target.value)}
+                      className="field !py-2 !text-sm font-mono"
+                      rows={10}
+                      spellCheck={false}
+                    />
+                    <p className="muted text-[0.7rem] italic font-display mt-1">
+                      Any <span className="font-mono not-italic">{'{{token}}'}</span> is filled from the inputs on the left.
+                    </p>
+                  </div>
+
+                  {/* Save controls */}
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleSaveChanges}
+                      disabled={!isDirty || isDefaultTemplate}
+                      title={
+                        isDefaultTemplate
+                          ? 'The default template is synthesized from .env — save as a new template instead.'
+                          : isDirty
+                            ? `Overwrite ${activeTemplate.id}.txt on disk`
+                            : 'No unsaved changes'
+                      }
+                      className="btn-ghost !py-1.5 !px-3 !text-[0.7rem] !tracking-normal !normal-case !font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      Save to {activeTemplate.id}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveAsNew}
+                      className="btn-ghost !py-1.5 !px-3 !text-[0.7rem] !tracking-normal !normal-case !font-medium"
+                      title="Write a new file under data/templates/"
+                    >
+                      Save as new…
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDiscardEdits}
+                      disabled={!isDirty}
+                      className="btn-ghost !py-1.5 !px-3 !text-[0.7rem] !tracking-normal !normal-case !font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+                      title="Revert subject and body to the saved template"
+                    >
+                      Discard edits
+                    </button>
+                    {saveStatus && (
+                      <span
+                        className={`text-[0.72rem] italic font-display ${
+                          saveStatus.kind === 'ok'
+                            ? 'text-[var(--color-stamp)]'
+                            : 'text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]'
+                        }`}
+                      >
+                        {saveStatus.kind === 'ok' ? '✓ ' : '✕ '}{saveStatus.text}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ) : null}
+
+              {/* Rendered preview — always shown when preview is open */}
+              <div className={editing ? 'border-t border-current/40 pt-3' : ''}>
+                <div className="label mb-1.5">
+                  {editing ? 'Rendered preview' : 'What will be sent'}
+                </div>
+                <p className="font-mono text-sm">
+                  <span className="muted mr-2">Subject:</span>
+                  {previewSubject}
+                </p>
+                <pre className="font-mono text-sm whitespace-pre-wrap leading-relaxed mt-1">
+                  {previewBody}
+                </pre>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ═══════ END GRID ═══════ */}
+      </div>
     </form>
   )
 }
