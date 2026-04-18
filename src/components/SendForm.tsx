@@ -305,9 +305,9 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
   const tokenLabels: Record<string, string> = {
     company: 'Company',
     role: 'Role',
-    first_name: 'First name',
+    first_name: "Their first name",
     job_url: 'Job URL',
-    sender_name: 'Your name',
+    sender_name: 'Your name (signature)',
   }
 
   return (
