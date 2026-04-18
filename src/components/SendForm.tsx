@@ -1,35 +1,127 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
+import type { Template } from '../lib/ledger'
+import type { ComposePrefill } from '../lib/compose'
+import { guessCompany, guessFirstName, substitute, unfilledTokens } from '../lib/compose'
 
 interface SendFormProps {
   onSent: () => void
   history: { to: string }[]
+  templates: Template[]
+  prefill: ComposePrefill | null
+  onPrefillConsumed: () => void
 }
 
 function parseEmails(input: string): string[] {
-  return input
-    .split(/[\n,;]+/)
-    .map((e) => e.trim())
-    .filter((e) => e.length > 0)
+  return input.split(/[\n,;]+/).map((e) => e.trim()).filter((e) => e.length > 0)
 }
 
 function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
 
-export default function SendForm({ onSent, history }: SendFormProps) {
+export default function SendForm({ onSent, history, templates, prefill, onPrefillConsumed }: SendFormProps) {
   const [input, setInput] = useState('')
+  const [templateId, setTemplateId] = useState<string>(templates[0]?.id ?? '')
+  const [tokens, setTokens] = useState<Record<string, string>>({})
+  const [autoFilled, setAutoFilled] = useState<Record<string, boolean>>({})
+  const [showPreview, setShowPreview] = useState(false)
+  const [parentContext, setParentContext] = useState<{ parentId: string; threadIndex: number } | null>(null)
+
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState<{ sent: number; failed: number; total: number } | null>(null)
   const [results, setResults] = useState<{ to: string; success: boolean; error?: string }[] | null>(null)
   const [showConfirm, setShowConfirm] = useState(false)
   const sendingRef = useRef(false)
 
+  // Pick up template default once the list loads
+  useEffect(() => {
+    if (!templateId && templates[0]) setTemplateId(templates[0].id)
+  }, [templates, templateId])
+
+  // Honor incoming prefill (e.g. "Compose follow-up" from the ledger)
+  useEffect(() => {
+    if (!prefill) return
+    setInput(prefill.to)
+    if (prefill.templateId) setTemplateId(prefill.templateId)
+    // Always reset tokens so stale state from prior composes doesn't leak in
+    setTokens(prefill.tokens ?? {})
+    setAutoFilled({})
+    if (prefill.parentId != null) {
+      setParentContext({
+        parentId: prefill.parentId,
+        threadIndex: prefill.threadIndex ?? 1,
+      })
+    } else {
+      setParentContext(null)
+    }
+    setShowConfirm(false)
+    setResults(null)
+    setProgress(null)
+    onPrefillConsumed()
+    requestAnimationFrame(() => {
+      document.getElementById('recipients')?.focus()
+    })
+  }, [prefill, onPrefillConsumed])
+
   const emails = parseEmails(input)
   const validEmails = emails.filter(isValidEmail)
   const invalidEmails = emails.filter((e) => !isValidEmail(e))
   const duplicates = validEmails.filter((e) =>
-    history.some((r) => r.to.toLowerCase() === e.toLowerCase())
+    history.some((r) => r.to.toLowerCase() === e.toLowerCase()),
   )
+
+  const activeTemplate = useMemo(
+    () => templates.find((t) => t.id === templateId) ?? null,
+    [templates, templateId],
+  )
+
+  // Auto-fill company/first_name from the first valid email when the user
+  // hasn't explicitly typed a value yet.
+  useEffect(() => {
+    if (validEmails.length === 0) return
+    const first = validEmails[0]
+    const proposedCompany = guessCompany(first)
+    const proposedFirst = guessFirstName(first)
+
+    setTokens((prev) => {
+      const next = { ...prev }
+      const nextAuto = { ...autoFilled }
+      let dirty = false
+
+      if (
+        proposedCompany &&
+        (!prev.company || autoFilled.company) &&
+        prev.company !== proposedCompany
+      ) {
+        next.company = proposedCompany
+        nextAuto.company = true
+        dirty = true
+      }
+      if (
+        proposedFirst &&
+        (!prev.first_name || autoFilled.first_name) &&
+        prev.first_name !== proposedFirst
+      ) {
+        next.first_name = proposedFirst
+        nextAuto.first_name = true
+        dirty = true
+      }
+      if (dirty) setAutoFilled(nextAuto)
+      return dirty ? next : prev
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [validEmails[0]])
+
+  function updateToken(key: string, value: string): void {
+    setTokens((prev) => ({ ...prev, [key]: value }))
+    setAutoFilled((prev) => ({ ...prev, [key]: false }))
+  }
+
+  const previewSubject = activeTemplate ? substitute(activeTemplate.subject, tokens) : ''
+  const previewBody = activeTemplate ? substitute(activeTemplate.body, tokens) : ''
+  const missingTokens = activeTemplate
+    ? unfilledTokens(activeTemplate.subject + '\n' + activeTemplate.body, tokens)
+    : []
 
   async function handleSend() {
     if (sendingRef.current || validEmails.length === 0) return
@@ -39,12 +131,22 @@ export default function SendForm({ onSent, history }: SendFormProps) {
     setProgress(null)
     setShowConfirm(false)
 
+    const cleanedTokens = Object.fromEntries(
+      Object.entries(tokens).filter(([, v]) => v.trim().length > 0),
+    )
+
     try {
       if (validEmails.length === 1) {
         const res = await fetch('/api/send', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ to: validEmails[0] }),
+          body: JSON.stringify({
+            to: validEmails[0],
+            templateId: activeTemplate?.id,
+            tokens: cleanedTokens,
+            parentId: parentContext?.parentId,
+            threadIndex: parentContext?.threadIndex,
+          }),
         })
         const data = await res.json()
         setResults([{ to: validEmails[0], success: data.success, error: data.error }])
@@ -53,13 +155,20 @@ export default function SendForm({ onSent, history }: SendFormProps) {
         const res = await fetch('/api/send-bulk', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ recipients: validEmails }),
+          body: JSON.stringify({
+            recipients: validEmails,
+            templateId: activeTemplate?.id,
+            tokens: cleanedTokens,
+          }),
         })
         const data = await res.json()
         setResults(data.results)
         setProgress({ sent: data.sent, failed: data.failed, total: validEmails.length })
       }
       setInput('')
+      setTokens({})
+      setAutoFilled({})
+      setParentContext(null)
       onSent()
     } catch {
       setResults([{ to: '', success: false, error: 'Network error — is the server running?' }])
@@ -75,12 +184,57 @@ export default function SendForm({ onSent, history }: SendFormProps) {
     setShowConfirm(true)
   }
 
+  const tallyLabel =
+    emails.length === 0
+      ? 'awaiting addresses'
+      : `${validEmails.length} valid${invalidEmails.length > 0 ? ` · ${invalidEmails.length} malformed` : ''}`
+
+  // Tokens to render input fields for: the union of tokens in the active template
+  // plus any keys the user has already typed. Preserve the template's order.
+  const tokenKeys = useMemo(() => {
+    const tpl = activeTemplate?.tokens ?? []
+    const extras = Object.keys(tokens).filter((k) => !tpl.includes(k))
+    return [...tpl, ...extras]
+  }, [activeTemplate, tokens])
+
+  const tokenLabels: Record<string, string> = {
+    company: 'Company',
+    role: 'Role',
+    first_name: 'First name',
+    job_url: 'Job URL',
+    sender_name: 'Your name',
+  }
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
+
+      {/* Follow-up banner if composing from a parent */}
+      {parentContext && (
+        <div className="border-l-4 border-[var(--color-dispatch)] dark:border-[var(--color-dispatch-n)] pl-4 py-1.5 flex items-baseline justify-between gap-4 flex-wrap">
+          <div>
+            <p className="label text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)] mb-0.5">
+              Follow-up № {parentContext.threadIndex}
+            </p>
+            <p className="text-sm muted">Linked to the original dispatch in your ledger.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setParentContext(null)}
+            className="btn-ghost !py-1 !px-2.5 !text-[0.7rem] !tracking-normal !normal-case !font-medium"
+          >
+            Detach
+          </button>
+        </div>
+      )}
+
       <div>
-        <label htmlFor="recipients" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Recipient Emails
-        </label>
+        <div className="flex items-baseline justify-between mb-2 gap-4">
+          <label htmlFor="recipients" className="label">
+            Recipients <span className="muted not-italic text-[0.82rem]">— one per line, or comma-separated</span>
+          </label>
+          <span className="muted text-[0.78rem] font-medium whitespace-nowrap">{tallyLabel}</span>
+        </div>
+
         <textarea
           id="recipients"
           value={input}
@@ -89,93 +243,227 @@ export default function SendForm({ onSent, history }: SendFormProps) {
             setShowConfirm(false)
             setResults(null)
           }}
-          placeholder={"recruiter@company.com\nhr@another.com, hiring@startup.io"}
-          rows={3}
-          className="w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-800 outline-none transition resize-y"
+          placeholder={'recruiter@company.com\nhr@another.com, hiring@startup.io'}
+          rows={4}
+          className="field"
           disabled={loading}
+          spellCheck={false}
+          autoComplete="off"
         />
-        <div className="flex items-center justify-between mt-1.5">
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            One per line, or comma/semicolon separated
-          </p>
-          {emails.length > 0 && (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {validEmails.length} valid{invalidEmails.length > 0 && `, ${invalidEmails.length} invalid`}
-            </p>
-          )}
-        </div>
       </div>
 
-      <button
-        type="submit"
-        disabled={loading || validEmails.length === 0}
-        className="w-full rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-      >
-        {loading ? 'Sending...' : validEmails.length <= 1 ? 'Send' : `Send to ${validEmails.length} recipients`}
-      </button>
+      {/* Template picker */}
+      {templates.length > 0 && (
+        <div>
+          <label htmlFor="template" className="label block mb-2">
+            Template <span className="muted not-italic text-[0.82rem]">— shape of the dispatch</span>
+          </label>
+          <div className="relative">
+            <select
+              id="template"
+              value={templateId}
+              onChange={(e) => setTemplateId(e.target.value)}
+              className="field !py-2.5 !pr-10 appearance-none cursor-pointer"
+              disabled={loading}
+            >
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.name}
+                </option>
+              ))}
+            </select>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none muted">▼</span>
+          </div>
+        </div>
+      )}
 
+      {/* Token fields */}
+      {tokenKeys.length > 0 && (
+        <div>
+          <div className="label mb-2">
+            Fill the blanks <span className="muted not-italic text-[0.82rem]">— left empty, they remain visible in the draft</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {tokenKeys.map((key) => (
+              <div key={key}>
+                <label className="text-[0.72rem] muted block mb-1 font-medium">
+                  {tokenLabels[key] ?? key}
+                  {autoFilled[key] && (
+                    <span className="ml-2 italic font-display text-[var(--color-stamp)]">
+                      · auto-suggested
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  value={tokens[key] ?? ''}
+                  onChange={(e) => updateToken(key, e.target.value)}
+                  placeholder={`{{${key}}}`}
+                  className="field !py-2 !text-sm"
+                  disabled={loading}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Preview toggle */}
+      {activeTemplate && (
+        <div>
+          <button
+            type="button"
+            onClick={() => setShowPreview((v) => !v)}
+            className="label text-left inline-flex items-center gap-2 hover:text-[var(--color-dispatch)] dark:hover:text-[var(--color-dispatch-n)] transition"
+          >
+            {showPreview ? '▾' : '▸'} Preview the dispatch
+            {missingTokens.length > 0 && (
+              <span className="text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)] not-italic text-[0.72rem] font-medium">
+                · {missingTokens.length} blank{missingTokens.length !== 1 ? 's' : ''} unfilled
+              </span>
+            )}
+          </button>
+          {showPreview && (
+            <div className="mt-2 border-l-2 border-current pl-4 py-1 space-y-2">
+              <p className="font-mono text-sm">
+                <span className="muted mr-2">Subject:</span>
+                {previewSubject}
+              </p>
+              <pre className="font-mono text-sm whitespace-pre-wrap leading-relaxed">
+                {previewBody}
+              </pre>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Advisories — malformed / duplicates */}
       {invalidEmails.length > 0 && (
-        <div className="rounded-lg border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950 px-4 py-3 text-sm text-red-700 dark:text-red-400">
-          Invalid: {invalidEmails.join(', ')}
+        <div className="border-l-4 border-[var(--color-dispatch)] dark:border-[var(--color-dispatch-n)] pl-4 py-1">
+          <p className="label text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)] mb-0.5">Malformed</p>
+          <p className="text-sm">{invalidEmails.join(' · ')}</p>
         </div>
       )}
 
-      {duplicates.length > 0 && !showConfirm && (
-        <div className="rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-4 py-3 text-sm text-amber-800 dark:text-amber-400">
-          Already sent to: {duplicates.join(', ')}
+      {duplicates.length > 0 && !showConfirm && !parentContext && (
+        <div className="border-l-4 border-[var(--color-stamp)] pl-4 py-1">
+          <p className="label text-[var(--color-stamp)] mb-0.5">Previously filed</p>
+          <p className="text-sm">{duplicates.join(' · ')}</p>
         </div>
       )}
 
-      {showConfirm && (
-        <div className="rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950 px-4 py-3">
-          <p className="text-sm text-blue-800 dark:text-blue-300 mb-3">
-            Send application email to{' '}
-            <span className="font-medium">
-              {validEmails.length === 1 ? validEmails[0] : `${validEmails.length} recipients`}
-            </span>
-            ?
-          </p>
-          <div className="flex gap-2">
+      {/* Transmit button OR confirmation stamp */}
+      {!showConfirm ? (
+        <button
+          type="submit"
+          disabled={loading || validEmails.length === 0}
+          className="btn-transmit"
+        >
+          <span className="inline-flex items-center gap-3">
+            {loading
+              ? 'Transmitting…'
+              : validEmails.length <= 1
+                ? <>{parentContext ? 'Send follow-up' : 'Transmit'} <span aria-hidden="true">→</span></>
+                : <>Transmit · {validEmails.length} Recipients <span aria-hidden="true">→</span></>}
+          </span>
+        </button>
+      ) : (
+        <div className="border-2 border-current p-5 relative">
+          <div className="absolute -top-3 left-5 bg-[var(--color-paper)] dark:bg-[var(--color-night)] px-2 label">
+            Operator &mdash; confirm
+          </div>
+          <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+            <p className="font-display text-[1.15rem] leading-snug flex-1 min-w-[200px]">
+              You are about to transmit{' '}
+              <span className="font-display-wonk font-bold text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]">
+                {validEmails.length === 1 ? 'one wire' : `${validEmails.length} wires`}
+              </span>
+              {validEmails.length === 1 ? (
+                <> to <span className="ink-mark">{validEmails[0]}</span>.</>
+              ) : (
+                <> across the wire.</>
+              )}
+              {missingTokens.length > 0 && (
+                <>
+                  <br/>
+                  <span className="italic text-[0.95rem] text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]">
+                    {missingTokens.length} blank{missingTokens.length !== 1 ? 's' : ''} still in the draft: {missingTokens.map((t) => `{{${t}}}`).join(', ')}
+                  </span>
+                </>
+              )}
+              <br/>
+              <span className="italic muted text-[0.95rem]">Proceed with caution — this cannot be retrieved.</span>
+            </p>
+            <div className="stamp text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)] text-xs">
+              Pending
+            </div>
+          </div>
+          <div className="flex gap-3 flex-wrap">
             <button
               type="button"
               onClick={handleSend}
               disabled={loading}
-              className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition"
+              className="btn-transmit !py-3 flex-1 min-w-[180px]"
             >
-              {loading ? 'Sending...' : 'Confirm Send'}
+              {loading ? 'Sending…' : 'Confirm & Transmit'}
             </button>
             <button
               type="button"
               onClick={() => setShowConfirm(false)}
               disabled={loading}
-              className="rounded-md bg-gray-200 dark:bg-gray-700 px-4 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              className="btn-ghost !py-3 !px-6"
             >
-              Cancel
+              Retract
             </button>
           </div>
         </div>
       )}
 
+      {/* Results report — telegraph style */}
       {progress && results && (
-        <div className="space-y-2">
-          <div className={`rounded-lg px-4 py-3 text-sm ${
-            progress.failed === 0
-              ? 'border border-green-300 dark:border-green-800 bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-400'
-              : progress.sent === 0
-                ? 'border border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950 text-red-800 dark:text-red-400'
-                : 'border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 text-amber-800 dark:text-amber-400'
-          }`}>
-            {progress.total === 1
-              ? (progress.sent === 1 ? `Sent to ${results[0].to}` : results[0].error || 'Failed to send')
-              : <><span className="text-green-600 dark:text-green-400">{progress.sent} passed</span>{' · '}<span className="text-red-600 dark:text-red-400">{progress.failed} failed</span>{` out of ${progress.total}`}</>
-            }
-          </div>
-          {progress.total > 1 && progress.failed > 0 && (
-            <div className="text-xs text-red-600 dark:text-red-400 space-y-0.5">
-              {results.filter((r) => !r.success).map((r) => (
-                <p key={r.to}>{r.to}: {r.error}</p>
-              ))}
-            </div>
+        <div className="border-t border-current pt-4 mt-4">
+          <div className="label mb-2">Transmission report</div>
+          {progress.total === 1 ? (
+            <p className={`font-display text-lg leading-snug ${
+              progress.sent === 1
+                ? ''
+                : 'text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]'
+            }`}>
+              {progress.sent === 1 ? (
+                <>
+                  <span className="numeral text-3xl mr-2">✓</span>
+                  Delivered to <span className="ink-mark">{results[0].to}</span>.
+                </>
+              ) : (
+                <>
+                  <span className="numeral text-3xl mr-2">✕</span>
+                  {results[0].error || 'Failed to send.'}
+                </>
+              )}
+            </p>
+          ) : (
+            <>
+              <p className="font-display text-lg leading-snug">
+                <span className="numeral text-3xl mr-2">{progress.sent}</span>
+                delivered
+                <span className="muted mx-2">·</span>
+                <span className={`numeral text-3xl mr-2 ${progress.failed > 0 ? 'text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]' : ''}`}>
+                  {progress.failed}
+                </span>
+                returned
+                <span className="muted"> of {progress.total}.</span>
+              </p>
+              {progress.failed > 0 && (
+                <div className="mt-3 text-sm space-y-1">
+                  {results.filter((r) => !r.success).map((r) => (
+                    <p key={r.to}>
+                      <span className="label mr-2 text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]">Return:</span>
+                      {r.to} — {r.error}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

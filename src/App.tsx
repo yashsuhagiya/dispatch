@@ -1,20 +1,52 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import SendForm from './components/SendForm'
-import HistoryTable from './components/HistoryTable'
+import Ledger from './components/Ledger'
+import StatsStrip from './components/StatsStrip'
+import type { SendRecord, Template } from './lib/ledger'
+import { getMetaMap, computeStats, recordId } from './lib/ledger'
+import type { ComposePrefill } from './lib/compose'
 
-interface SendRecord {
-  to: string
-  timestamp: string
-  status: 'sent' | 'failed'
-  error?: string
+const ROMAN = ['I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII']
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']
+
+function toRoman(n: number): string {
+  const map: [number, string][] = [
+    [1000, 'M'], [900, 'CM'], [500, 'D'], [400, 'CD'],
+    [100, 'C'], [90, 'XC'], [50, 'L'], [40, 'XL'],
+    [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I'],
+  ]
+  let out = ''
+  for (const [v, s] of map) {
+    while (n >= v) { out += s; n -= v }
+  }
+  return out
+}
+
+function dayOfYear(d: Date): number {
+  const start = new Date(d.getFullYear(), 0, 0)
+  return Math.floor((d.getTime() - start.getTime()) / 86400000)
+}
+
+const FOLLOWUP_TEMPLATE_HINTS = ['followup', 'follow-up', 'follow_up']
+
+function pickFollowUpTemplate(templates: Template[]): Template | null {
+  for (const t of templates) {
+    const id = t.id.toLowerCase()
+    if (FOLLOWUP_TEMPLATE_HINTS.some((h) => id.includes(h))) return t
+  }
+  return null
 }
 
 export default function App() {
   const [history, setHistory] = useState<SendRecord[]>([])
+  const [templates, setTemplates] = useState<Template[]>([])
   const [loading, setLoading] = useState(true)
   const [dark, setDark] = useState(() =>
-    window.matchMedia('(prefers-color-scheme: dark)').matches
+    window.matchMedia('(prefers-color-scheme: dark)').matches,
   )
+  const [metaVersion, setMetaVersion] = useState(0)
+  const [prefill, setPrefill] = useState<ComposePrefill | null>(null)
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark)
@@ -32,68 +64,173 @@ export default function App() {
     }
   }, [])
 
-  useEffect(() => {
-    fetchHistory()
-  }, [fetchHistory])
+  const fetchTemplates = useCallback(async () => {
+    try {
+      const res = await fetch('/api/templates')
+      const data = await res.json()
+      setTemplates(data)
+    } catch {
+      console.error('Failed to fetch templates')
+    }
+  }, [])
 
-  const todayCount = history.filter((r) => {
-    const d = new Date(r.timestamp)
-    const now = new Date()
-    return (
-      r.status === 'sent' &&
-      d.getFullYear() === now.getFullYear() &&
-      d.getMonth() === now.getMonth() &&
-      d.getDate() === now.getDate()
-    )
-  }).length
+  useEffect(() => { fetchHistory() }, [fetchHistory])
+  useEffect(() => { fetchTemplates() }, [fetchTemplates])
+
+  const handleComposeFollowUp = useCallback((r: SendRecord, childCount: number) => {
+    const followUpTpl = pickFollowUpTemplate(templates)
+    setPrefill({
+      nonce: Date.now(),
+      to: r.to,
+      templateId: followUpTpl?.id,
+      tokens: r.tokens,
+      parentId: recordId(r),
+      threadIndex: childCount + 1,
+    })
+    // Scroll compose section into view on narrow layouts
+    requestAnimationFrame(() => {
+      document.getElementById('recipients')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }, [templates])
+
+  // Cmd/Ctrl-K to focus compose
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        const el = document.getElementById('recipients') as HTMLTextAreaElement | null
+        el?.focus()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
+  const now = new Date()
+  const stats = useMemo(
+    () => computeStats(history, getMetaMap()),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [history, metaVersion],
+  )
+
+  const dateLine = `${WEEKDAYS[now.getDay()]}, ${now.getDate()} ${MONTHS[now.getMonth()]} ${toRoman(now.getFullYear())}`
+  const issueNo = `Vol. ${ROMAN[(now.getMonth()) % 12]} · No. ${String(dayOfYear(now)).padStart(3, '0')}`
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 transition-colors">
-      <div className="mx-auto max-w-3xl px-4 py-10">
-        <header className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100"><span className="mr-2">🚀</span>Email Application Sender</h1>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              Send your job application with one click.
-            </p>
+    <>
+      <div className="grain" aria-hidden="true" />
+      <div className="min-h-screen px-5 sm:px-10 py-8 sm:py-12 max-w-[1300px] mx-auto relative z-10">
+
+        {/* ══════════════ MASTHEAD ══════════════ */}
+        <header className="reveal" style={{ animationDelay: '0ms' }}>
+          <div className="flex items-start justify-between gap-6 flex-wrap text-[0.78rem]">
+            <div className="flex items-center gap-3">
+              <span className="font-medium">{issueNo}</span>
+              <span className="muted" aria-hidden="true">·</span>
+              <span className="muted hidden sm:inline italic font-display">Printed locally</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <span className="hidden sm:inline font-medium">Filed {dateLine}</span>
+              <button
+                onClick={() => setDark(!dark)}
+                className="btn-ghost !py-1.5 !px-3 !text-[0.72rem] !tracking-normal !normal-case !font-medium"
+                title={dark ? 'Switch to day edition' : 'Switch to night edition'}
+              >
+                {dark ? '☾ Night ed.' : '☀ Day ed.'}
+              </button>
+            </div>
           </div>
-          <button
-            onClick={() => setDark(!dark)}
-            className="rounded-lg p-2 text-gray-500 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-800 transition"
-            title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {dark ? (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-5">
-                <path d="M10 2a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 2ZM10 15a.75.75 0 0 1 .75.75v1.5a.75.75 0 0 1-1.5 0v-1.5A.75.75 0 0 1 10 15ZM10 7a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM15.657 5.404a.75.75 0 1 0-1.06-1.06l-1.061 1.06a.75.75 0 0 0 1.06 1.06l1.06-1.06ZM6.464 14.596a.75.75 0 1 0-1.06-1.06l-1.06 1.06a.75.75 0 0 0 1.06 1.06l1.06-1.06ZM18 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 18 10ZM5 10a.75.75 0 0 1-.75.75h-1.5a.75.75 0 0 1 0-1.5h1.5A.75.75 0 0 1 5 10ZM14.596 15.657a.75.75 0 0 0 1.06-1.06l-1.06-1.061a.75.75 0 1 0-1.06 1.06l1.06 1.06ZM5.404 6.464a.75.75 0 0 0 1.06-1.06l-1.06-1.06a.75.75 0 1 0-1.06 1.06l1.06 1.06Z" />
-              </svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="size-5">
-                <path fillRule="evenodd" d="M7.455 2.004a.75.75 0 0 1 .26.77 7 7 0 0 0 9.958 7.967.75.75 0 0 1 1.067.853A8.5 8.5 0 1 1 6.647 1.921a.75.75 0 0 1 .808.083Z" clipRule="evenodd" />
-              </svg>
-            )}
-          </button>
+
+          <div className="rule-thick mt-4" />
+
+          <div className="flex items-end justify-between gap-6 flex-wrap pt-4 pb-2">
+            <h1 className="font-display-wonk text-[clamp(3rem,10vw,8.5rem)] leading-[0.82] tracking-[-0.04em]">
+              <span className="italic font-extralight">The</span>{' '}
+              <span className="font-black">Dispatch</span>
+              <span className="text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]">.</span>
+            </h1>
+            <div className="text-right hidden md:block pb-3 muted">
+              <p className="font-display italic text-lg leading-tight">
+                &mdash; a field journal<br/>
+                for the job search.
+              </p>
+            </div>
+          </div>
+
+          <div className="rule-thick" />
+
+          {/* Tagline + motto strip */}
+          <div className="flex items-center justify-between gap-6 py-3 text-[0.82rem] flex-wrap">
+            <span className="font-display italic">Unsparing · Unsalaried · Unsigned</span>
+            <span className="font-display italic text-[1rem] text-center flex-1 min-w-[180px]">
+              &ldquo;Persistence is the whole of the trade.&rdquo;
+            </span>
+            <span className="sm:hidden font-medium">Filed {dateLine}</span>
+            <span className="hidden sm:inline muted font-medium">
+              Press Run № {String(history.length).padStart(4, '0')}
+            </span>
+          </div>
+
+          <div className="rule-double" />
         </header>
 
-        <div className="space-y-6">
-          <section className="rounded-xl bg-white dark:bg-gray-900 p-6 shadow-sm border border-gray-200 dark:border-gray-800">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Send Email</h2>
-              <span className="text-xs text-gray-400">{todayCount} / 100 sent today</span>
+        {/* ══════════════ STATS STRIP ══════════════ */}
+        <section className="reveal mt-8" style={{ animationDelay: '120ms' }}>
+          <StatsStrip stats={stats} />
+        </section>
+
+        {/* ══════════════ TWO-COLUMN BODY ══════════════ */}
+        <div className="mt-12 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-10 lg:gap-14">
+
+          {/* § I — Dispatch note */}
+          <section className="reveal" style={{ animationDelay: '240ms' }}>
+            <div className="flex items-baseline justify-between mb-2 gap-4">
+              <h2 className="font-display text-[1.4rem] leading-none tracking-tight">
+                <span className="muted mr-2">§ I</span>
+                Compose a dispatch
+              </h2>
+              <span className="muted text-[0.72rem] font-medium whitespace-nowrap">⌘K to focus</span>
             </div>
-            <SendForm onSent={fetchHistory} history={history} />
+            <div className="rule-double mb-5" />
+            <p className="font-display italic text-[1.05rem] leading-snug mb-6 muted">
+              <span className="text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]">❦</span>{' '}
+              Address the recipient. One hand, one wire, one
+              <br className="hidden sm:inline" /> application at a time.
+            </p>
+            <SendForm
+              onSent={fetchHistory}
+              history={history}
+              templates={templates}
+              prefill={prefill}
+              onPrefillConsumed={() => setPrefill(null)}
+            />
           </section>
 
-          <section className="rounded-xl bg-white dark:bg-gray-900 p-6 shadow-sm border border-gray-200 dark:border-gray-800">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
-              Send History
-              {history.length > 0 && (
-                <span className="ml-2 text-sm font-normal text-gray-400">({history.length})</span>
-              )}
-            </h2>
-            <HistoryTable history={history} loading={loading} />
+          {/* § II — Campaign ledger */}
+          <section className="reveal" style={{ animationDelay: '360ms' }}>
+            <Ledger
+              history={history}
+              loading={loading}
+              onMetaChange={() => setMetaVersion((v) => v + 1)}
+              onComposeFollowUp={handleComposeFollowUp}
+            />
           </section>
         </div>
+
+        {/* ══════════════ FOOTER ══════════════ */}
+        <footer className="mt-20 reveal-fade" style={{ animationDelay: '720ms' }}>
+          <div className="rule-double mb-4" />
+          <div className="text-center py-6">
+            <div className="asterism muted" aria-hidden="true">✦ ✦ ✦</div>
+            <p className="mt-4 font-display italic text-lg">
+              Filed at the bench · Printed locally · <span className="ink-mark">No claims to fortune.</span>
+            </p>
+            <p className="mt-3 muted font-display italic text-sm">
+              — End of edition —
+            </p>
+          </div>
+        </footer>
       </div>
-    </div>
+    </>
   )
 }

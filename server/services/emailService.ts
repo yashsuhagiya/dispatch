@@ -18,13 +18,20 @@ export interface SendResult {
   error?: string
 }
 
-export async function send(to: string): Promise<SendResult> {
+export interface SendOptions {
+  /** Overrides the default EMAIL_SUBJECT when provided. */
+  subject?: string
+  /** Overrides the default EMAIL_BODY when provided. */
+  body?: string
+}
+
+export async function send(to: string, opts: SendOptions = {}): Promise<SendResult> {
   try {
     const info = await transporter.sendMail({
       from: config.gmailUser,
       to,
-      subject: config.emailSubject,
-      text: config.emailBody,
+      subject: opts.subject ?? config.emailSubject,
+      text: opts.body ?? config.emailBody,
       attachments: config.attachments,
     })
     return { success: true, messageId: info.messageId }

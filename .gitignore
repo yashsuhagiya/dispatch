@@ -1,5 +1,15 @@
 .env
 node_modules/
-data/
-.planning/
 dist/
+
+# Internal planning / agent artifacts
+.planning/
+.playwright-mcp/
+.claude/settings.local.json
+
+# Runtime ledger (personal send history) stays local
+data/send-log.json
+
+# Ship the templates directory with starter files
+!data/templates/
+!data/templates/**

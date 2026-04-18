@@ -10,6 +10,16 @@ export interface SendRecord {
   status: 'sent' | 'failed'
   messageId?: string
   error?: string
+  /** Template id used for this send (present on new-schema records). */
+  templateId?: string
+  /** Resolved subject (post-substitution) for reference in the ledger. */
+  subject?: string
+  /** Values supplied for tokens — enables re-sending follow-ups with same context. */
+  tokens?: Record<string, string>
+  /** recordId of the original send this is a follow-up to. */
+  parentId?: string
+  /** 0 = initial, 1 = first follow-up, etc. */
+  threadIndex?: number
 }
 
 export async function append(entry: SendRecord): Promise<void> {

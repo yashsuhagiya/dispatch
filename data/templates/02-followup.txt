@@ -1,0 +1,9 @@
+Subject: Re: Interest in {{role}} at {{company}}
+
+Hi {{first_name}},
+
+Following up on my note from last week regarding the {{role}} role at {{company}}.
+I'm still keen and happy to share more context if it'd help the decision.
+
+Best,
+{{sender_name}}

@@ -1,0 +1,9 @@
+Subject: Interest in {{role}} at {{company}}
+
+Hi {{first_name}},
+
+I came across {{company}}'s open {{role}} role and wanted to reach out directly.
+My résumé is attached — I'd welcome a brief conversation if the fit looks right.
+
+Thanks for your time,
+{{sender_name}}

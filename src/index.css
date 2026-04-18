@@ -1,3 +1,368 @@
 @import "tailwindcss";
 
 @custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-display: "Fraunces", "Iowan Old Style", "Palatino", ui-serif, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+  --font-sans: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-paper: #e8e0ce;
+  --color-paper-2: #ddd3be;
+  --color-paper-3: #c9bfa8;
+  --color-ink: #111010;
+  --color-ink-2: #2a2622;
+  --color-char: #55504a;
+  --color-dispatch: #a82b1f;
+  --color-dispatch-2: #7a1d13;
+  --color-stamp: #5e5244;
+
+  --color-night: #0f0e0d;
+  --color-night-2: #1a1816;
+  --color-night-3: #2a2623;
+  --color-cream: #efe8d7;
+  --color-char-n: #a39a8b;
+  --color-dispatch-n: #e94c37;
+}
+
+html {
+  background: #e8e0ce;
+  color: #111010;
+}
+
+html.dark {
+  background: #0f0e0d;
+  color: #efe8d7;
+}
+
+body {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  font-feature-settings: "ss01", "ss02", "cv01", "cv02";
+  letter-spacing: -0.002em;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* Muted ink — use instead of opacity for secondary text. Maintains contrast. */
+.muted {
+  color: #55504a;
+}
+html.dark .muted {
+  color: #a39a8b;
+}
+
+.font-display {
+  font-family: "Fraunces", "Iowan Old Style", "Palatino", serif;
+  font-variation-settings: "opsz" 144, "SOFT" 30;
+  letter-spacing: -0.02em;
+}
+
+.font-display-wonk {
+  font-family: "Fraunces", "Iowan Old Style", serif;
+  font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  letter-spacing: -0.02em;
+}
+
+.font-display-italic {
+  font-family: "Fraunces", "Iowan Old Style", serif;
+  font-style: italic;
+  font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+}
+
+/* Newsprint grain — atmospheric, not washing text. */
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg viewBox='0 0 240 240' xmlns='http://www.w3.org/2000/svg'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.35 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  mix-blend-mode: multiply;
+  opacity: 0.2;
+}
+
+html.dark .grain {
+  mix-blend-mode: screen;
+  opacity: 0.22;
+}
+
+/* Selection */
+::selection {
+  background: #b03224;
+  color: #eeeae0;
+}
+html.dark ::selection {
+  background: #e04834;
+  color: #0f0e0d;
+}
+
+/* Rule — thick / hairline */
+.rule-thick {
+  border-top: 4px solid #141212;
+  border-bottom: 1px solid #141212;
+  height: 6px;
+  padding-top: 1px;
+}
+html.dark .rule-thick {
+  border-top-color: #eeeae0;
+  border-bottom-color: #eeeae0;
+}
+.rule-double {
+  border-top: 1px solid #141212;
+  border-bottom: 1px solid #141212;
+  height: 4px;
+}
+html.dark .rule-double {
+  border-top-color: #eeeae0;
+  border-bottom-color: #eeeae0;
+}
+
+/* Column caps — reserved for structural accents: datelines, section numbers,
+   stat labels, short status tokens. Do NOT use for prose or primary labels. */
+.caps {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+}
+.caps-tight {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 700;
+}
+
+/* A quieter label — use for UI labels that benefit from a subtle editorial
+   register without shouting in ALL CAPS. */
+.label {
+  font-family: "Fraunces", serif;
+  font-variation-settings: "opsz" 14, "SOFT" 50;
+  font-style: italic;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  font-size: 0.92rem;
+}
+
+/* Drop cap */
+.dropcap::first-letter {
+  font-family: "Fraunces", serif;
+  font-variation-settings: "opsz" 144, "SOFT" 100, "WONK" 1;
+  font-weight: 900;
+  font-size: 3.5em;
+  line-height: 0.85;
+  float: left;
+  margin: 0.1em 0.1em 0 0;
+  color: #b03224;
+}
+html.dark .dropcap::first-letter {
+  color: #e04834;
+}
+
+/* Stamp: rotated ink impression */
+.stamp {
+  border: 2px solid currentColor;
+  padding: 0.25rem 0.6rem;
+  display: inline-block;
+  transform: rotate(-2.5deg);
+  font-family: "Fraunces", serif;
+  font-variation-settings: "opsz" 144, "WONK" 1;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* Underline marker (hand-drawn feel) */
+.ink-mark {
+  background-image: linear-gradient(transparent 60%, rgba(176, 50, 36, 0.3) 60%, rgba(176, 50, 36, 0.3) 90%, transparent 90%);
+  background-repeat: no-repeat;
+  padding: 0 0.1em;
+}
+html.dark .ink-mark {
+  background-image: linear-gradient(transparent 60%, rgba(224, 72, 52, 0.4) 60%, rgba(224, 72, 52, 0.4) 90%, transparent 90%);
+}
+
+/* Focus ring in the spirit of the brand */
+*:focus-visible {
+  outline: 2px solid #b03224;
+  outline-offset: 2px;
+}
+html.dark *:focus-visible {
+  outline-color: #e04834;
+}
+
+/* Marquee/ticker */
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.ticker-track {
+  animation: ticker 80s linear infinite;
+  will-change: transform;
+}
+
+/* Page-load reveal */
+@keyframes reveal-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes reveal-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.reveal {
+  animation: reveal-rise 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+.reveal-fade {
+  animation: reveal-in 1.4s ease backwards;
+}
+
+/* Typeset big numerals for stats */
+.numeral {
+  font-family: "Fraunces", serif;
+  font-variation-settings: "opsz" 144, "SOFT" 30;
+  font-feature-settings: "lnum", "tnum";
+  font-weight: 500;
+  letter-spacing: -0.04em;
+  line-height: 0.85;
+}
+
+/* Ledger row hover highlight */
+.ledger-row:hover {
+  background: #e4dfd2;
+}
+html.dark .ledger-row:hover {
+  background: #1a1816;
+}
+
+/* Pipeline tag */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.15rem 0.45rem;
+  border: 1.5px solid currentColor;
+  font-size: 0.65rem;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-family: "JetBrains Mono", monospace;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: transform 0.12s ease;
+}
+.tag:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0 currentColor;
+}
+.tag:active {
+  transform: translate(0, 0);
+  box-shadow: none;
+}
+
+/* Hand scribble divider glyph */
+.glyph-wave {
+  font-family: "Fraunces", serif;
+  font-style: italic;
+  font-weight: 300;
+  letter-spacing: 0.4em;
+}
+
+/* Textarea / input unified brutal field */
+.field {
+  background: transparent;
+  border: 2px solid #141212;
+  padding: 0.9rem 1rem;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: inherit;
+  width: 100%;
+  transition: background 0.15s ease;
+}
+html.dark .field {
+  border-color: #eeeae0;
+}
+.field::placeholder {
+  color: #6b6359;
+  font-style: italic;
+}
+html.dark .field::placeholder {
+  color: #8a8378;
+}
+.field:focus {
+  background: #e4dfd2;
+  outline: 2px solid #b03224;
+  outline-offset: -2px;
+}
+html.dark .field:focus {
+  background: #1a1816;
+  outline-color: #e04834;
+}
+
+/* The transmit button */
+.btn-transmit {
+  width: 100%;
+  background: #141212;
+  color: #eeeae0;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  padding: 1.1rem 1rem;
+  border: 2px solid #141212;
+  text-transform: uppercase;
+  font-size: 0.85rem;
+  transition: all 0.18s ease;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+.btn-transmit:hover:not(:disabled) {
+  background: #b03224;
+  border-color: #b03224;
+  color: #eeeae0;
+  letter-spacing: 0.22em;
+}
+.btn-transmit:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+html.dark .btn-transmit {
+  background: #eeeae0;
+  color: #0f0e0d;
+  border-color: #eeeae0;
+}
+html.dark .btn-transmit:hover:not(:disabled) {
+  background: #e04834;
+  border-color: #e04834;
+  color: #0f0e0d;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: inherit;
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  padding: 0.6rem 0.9rem;
+  border: 1.5px solid currentColor;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.btn-ghost:hover {
+  background: #141212;
+  color: #eeeae0;
+}
+html.dark .btn-ghost:hover {
+  background: #eeeae0;
+  color: #0f0e0d;
+}
+
+/* Asterism / ornament */
+.asterism {
+  font-family: "Fraunces", serif;
+  font-size: 1.1em;
+  letter-spacing: 0.6em;
+  padding-left: 0.3em;
+}

@@ -1,8 +1,31 @@
 {
-  "name": "email-application-sender",
+  "name": "dispatch",
   "version": "1.0.0",
+  "description": "The Dispatch — a local-only, zero-cost field journal for your job search. Compose, send, and track cold-application emails via your own Gmail, on your own machine.",
   "private": true,
   "type": "module",
+  "license": "MIT",
+  "author": "Yash Suhagiya",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yashsuhagiya/dispatch.git"
+  },
+  "homepage": "https://github.com/yashsuhagiya/dispatch#readme",
+  "bugs": {
+    "url": "https://github.com/yashsuhagiya/dispatch/issues"
+  },
+  "keywords": [
+    "job-search",
+    "email",
+    "gmail",
+    "smtp",
+    "local-first",
+    "cold-outreach",
+    "application-tracker",
+    "react",
+    "hono",
+    "bun"
+  ],
   "scripts": {
     "dev": "vite"
   },
