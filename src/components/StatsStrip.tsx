@@ -19,22 +19,22 @@ function Stat({
   emphasis?: boolean
 }) {
   return (
-    <div className="flex flex-col justify-between gap-3 py-5 px-4 sm:px-6 relative">
-      <div className="flex items-baseline gap-1.5">
+    <div className="flex items-baseline justify-between gap-3 py-2.5 px-3 sm:px-4 relative">
+      <div className="flex items-baseline gap-1">
         <span
-          className={`numeral text-[clamp(3rem,8vw,6rem)] ${
+          className={`numeral text-[clamp(1.75rem,3.5vw,2.5rem)] ${
             emphasis ? 'text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]' : ''
           }`}
         >
           {value}
         </span>
         {suffix && (
-          <span className="font-display italic text-xl sm:text-2xl muted translate-y-[-0.2em]">
+          <span className="font-display italic text-sm muted translate-y-[-0.15em]">
             {suffix}
           </span>
         )}
       </div>
-      <div className="font-display italic text-[0.95rem] leading-tight">
+      <div className="font-display italic text-[0.82rem] leading-tight text-right muted">
         {label}
       </div>
     </div>

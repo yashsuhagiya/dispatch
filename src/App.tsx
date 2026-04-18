@@ -119,18 +119,29 @@ export default function App() {
   return (
     <>
       <div className="grain" aria-hidden="true" />
-      <div className="min-h-screen px-5 sm:px-10 py-8 sm:py-12 max-w-[1300px] mx-auto relative z-10">
+      <div className="min-h-screen px-5 sm:px-10 py-5 sm:py-7 max-w-[1300px] mx-auto relative z-10">
 
-        {/* ══════════════ MASTHEAD ══════════════ */}
+        {/* ══════════════ MASTHEAD — compact horizontal band ══════════════ */}
         <header className="reveal" style={{ animationDelay: '0ms' }}>
-          <div className="flex items-start justify-between gap-6 flex-wrap text-[0.78rem]">
-            <div className="flex items-center gap-3">
-              <span className="font-medium">{issueNo}</span>
-              <span className="muted" aria-hidden="true">·</span>
-              <span className="muted hidden sm:inline italic font-display">Printed locally</span>
+          <div className="flex items-center justify-between gap-6 flex-wrap">
+            {/* Brand + inline tagline */}
+            <div className="flex items-baseline gap-4 flex-wrap min-w-0">
+              <h1 className="font-display-wonk text-[clamp(1.75rem,4vw,2.75rem)] leading-none tracking-[-0.03em]">
+                <span className="italic font-extralight">The</span>{' '}
+                <span className="font-black">Dispatch</span>
+                <span className="text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]">.</span>
+              </h1>
+              <span className="font-display italic muted text-[0.95rem] hidden sm:inline">
+                &mdash; a field journal for the job search.
+              </span>
             </div>
-            <div className="flex items-center gap-4">
-              <span className="hidden sm:inline font-medium">Filed {dateLine}</span>
+
+            {/* Meta + toggle */}
+            <div className="flex items-center gap-4 text-[0.78rem]">
+              <span className="muted hidden md:inline font-medium">
+                {issueNo}
+              </span>
+              <span className="hidden md:inline font-medium">Filed {dateLine}</span>
               <button
                 onClick={() => setDark(!dark)}
                 className="btn-ghost !py-1.5 !px-3 !text-[0.72rem] !tracking-normal !normal-case !font-medium"
@@ -141,46 +152,16 @@ export default function App() {
             </div>
           </div>
 
-          <div className="rule-thick mt-4" />
-
-          <div className="flex items-end justify-between gap-6 flex-wrap pt-4 pb-2">
-            <h1 className="font-display-wonk text-[clamp(3rem,10vw,8.5rem)] leading-[0.82] tracking-[-0.04em]">
-              <span className="italic font-extralight">The</span>{' '}
-              <span className="font-black">Dispatch</span>
-              <span className="text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]">.</span>
-            </h1>
-            <div className="text-right hidden md:block pb-3 muted">
-              <p className="font-display italic text-lg leading-tight">
-                &mdash; a field journal<br/>
-                for the job search.
-              </p>
-            </div>
-          </div>
-
-          <div className="rule-thick" />
-
-          {/* Tagline + motto strip */}
-          <div className="flex items-center justify-between gap-6 py-3 text-[0.82rem] flex-wrap">
-            <span className="font-display italic">Unsparing · Unsalaried · Unsigned</span>
-            <span className="font-display italic text-[1rem] text-center flex-1 min-w-[180px]">
-              &ldquo;Persistence is the whole of the trade.&rdquo;
-            </span>
-            <span className="sm:hidden font-medium">Filed {dateLine}</span>
-            <span className="hidden sm:inline muted font-medium">
-              Press Run № {String(history.length).padStart(4, '0')}
-            </span>
-          </div>
-
-          <div className="rule-double" />
+          <div className="rule-double mt-3" />
         </header>
 
         {/* ══════════════ STATS STRIP ══════════════ */}
-        <section className="reveal mt-8" style={{ animationDelay: '120ms' }}>
+        <section className="reveal mt-5" style={{ animationDelay: '80ms' }}>
           <StatsStrip stats={stats} />
         </section>
 
         {/* ══════════════ TWO-COLUMN BODY ══════════════ */}
-        <div className="mt-12 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-10 lg:gap-14">
+        <div className="mt-7 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)] gap-8 lg:gap-12">
 
           {/* § I — Dispatch note */}
           <section className="reveal" style={{ animationDelay: '240ms' }}>
@@ -191,12 +172,7 @@ export default function App() {
               </h2>
               <span className="muted text-[0.72rem] font-medium whitespace-nowrap">⌘K to focus</span>
             </div>
-            <div className="rule-double mb-5" />
-            <p className="font-display italic text-[1.05rem] leading-snug mb-6 muted">
-              <span className="text-[var(--color-dispatch)] dark:text-[var(--color-dispatch-n)]">❦</span>{' '}
-              Address the recipient. One hand, one wire, one
-              <br className="hidden sm:inline" /> application at a time.
-            </p>
+            <div className="rule-double mb-4" />
             <SendForm
               onSent={fetchHistory}
               history={history}
