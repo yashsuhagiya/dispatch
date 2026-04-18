@@ -27,7 +27,7 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
   const [templateId, setTemplateId] = useState<string>(templates[0]?.id ?? '')
   const [tokens, setTokens] = useState<Record<string, string>>({})
   const [autoFilled, setAutoFilled] = useState<Record<string, boolean>>({})
-  const [showPreview, setShowPreview] = useState(false)
+  const [showPreview, setShowPreview] = useState(true)
   const [parentContext, setParentContext] = useState<{ parentId: string; threadIndex: number } | null>(null)
 
   // Editable draft content (raw, with {{tokens}}). Synced from active template
