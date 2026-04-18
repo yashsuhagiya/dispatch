@@ -663,19 +663,19 @@ export default function SendForm({ onSent, history, templates, prefill, onPrefil
                 </div>
               ) : null}
 
-              {/* Rendered preview — always shown when preview is open */}
-              <div className={editing ? 'border-t border-current/40 pt-3' : ''}>
-                <div className="label mb-1.5">
-                  {editing ? 'Rendered preview' : 'What will be sent'}
+              {/* Rendered preview — hidden while editing the source */}
+              {!editing && (
+                <div>
+                  <div className="label mb-1.5">What will be sent</div>
+                  <p className="font-mono text-sm">
+                    <span className="muted mr-2">Subject:</span>
+                    {previewSubject}
+                  </p>
+                  <pre className="font-mono text-sm whitespace-pre-wrap leading-relaxed mt-1">
+                    {previewBody}
+                  </pre>
                 </div>
-                <p className="font-mono text-sm">
-                  <span className="muted mr-2">Subject:</span>
-                  {previewSubject}
-                </p>
-                <pre className="font-mono text-sm whitespace-pre-wrap leading-relaxed mt-1">
-                  {previewBody}
-                </pre>
-              </div>
+              )}
             </div>
           )}
         </div>
