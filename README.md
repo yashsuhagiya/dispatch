@@ -3,6 +3,11 @@
 > *A local-only, zero-cost field journal for your job search.*
 > Compose, send, and track cold-application emails — from your own Gmail, on your own machine. No accounts, no cloud, no telemetry.
 
+<img src=".github/screenshots/compose.png" alt="Compose view: stats strip, recipient and template inputs with filled tokens, and a live preview of the rendered email">
+<img src=".github/screenshots/ledger.png" alt="Campaign ledger: sent emails with filters, follow-up due markers and statuses such as replied, interview and rejected">
+
+<sub>Shown with made-up demo data.</sub>
+
 ---
 
 ## Why
