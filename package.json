@@ -30,21 +30,21 @@
     "dev": "vite"
   },
   "dependencies": {
+    "@hono/zod-validator": "^0.9.1",
     "hono": "^4.12.8",
-    "nodemailer": "^8.0.3",
-    "zod": "^3.24.0",
-    "@hono/zod-validator": "^0.4.3",
+    "nodemailer": "^10.6.1",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4"
+    "react-dom": "^19.2.4",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@types/nodemailer": "^6.4.17",
+    "@tailwindcss/vite": "^4.2.2",
+    "@types/nodemailer": "^8.0.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
     "tailwindcss": "^4.2.2",
-    "@tailwindcss/vite": "^4.2.2",
-    "vite": "^8.0.1",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vite": "^8.0.1"
   }
 }
